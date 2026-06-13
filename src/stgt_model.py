@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-STGT Ultimate - Spatio-Temporal Graph Transformer (Version Optimale - CORRIGÉE)
+STGT Ultimate - Spatio-Temporal Graph Transformer
 
-Combine les points forts de:
-- STGT_corrected.py: Code propre, modulaire, CLI, production-ready
-- Spatio-Temporal_GAN.py: Visualisations professionnelles, analyse complète
-
-Architecture STGT:
-- Temporal Transformer (4 layers, 8 heads)
-- Spatial GAT (3 layers, 4 heads)
-- Spatio-Temporal Fusion (cross-attention)
-- Prediction Head (Dense layers)
-
-FIX: Correction bug dimension dans GraphAttentionLayer (ligne 351)
-
-Auteur: Omar, ENSAO - Université Mohammed Premier
-Date: Janvier 2026
-Version: 1.1 (Corrigée)
 """
 
 import argparse
@@ -42,11 +27,11 @@ from tensorflow.keras import layers, callbacks
 
 warnings.filterwarnings("ignore")
 
-# Configuration matplotlib
+
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
-# ─── Polices agrandies pour publication ───
+
 #plt.rcParams.update({
  #   'axes.titlesize':   34,
   #  'axes.titleweight': 'bold',
@@ -60,57 +45,43 @@ sns.set_palette("husl")
 #})
 
 
-# ─── Polices très grandes pour conférence ───
 plt.rcParams.update({
 
-    # titre principal figure
-    'figure.titlesize': 34,
+     'figure.titlesize': 34,
     'figure.titleweight': 'bold',
 
-    # titres des subplots
-    'axes.titlesize': 30,
+      'axes.titlesize': 30,
     'axes.titleweight': 'bold',
 
-    # labels axes
-    'axes.labelsize': 30,
+       'axes.labelsize': 30,
     'axes.labelweight': 'bold',
 
-    # ticks axes
-    'xtick.labelsize': 26,
+       'xtick.labelsize': 26,
     'ytick.labelsize': 26,
 
-    # légende
-    'legend.fontsize': 22,
+       'legend.fontsize': 22,
 
-    # police générale
-    'font.size': 24,
+       'font.size': 24,
 
-    # largeur lignes
+    
     'lines.linewidth': 6,
 
-    # taille marqueurs
     'lines.markersize': 14,
 
-    # taille figure par défaut
-    'figure.figsize': (12, 8),
-
-    # résolution publication
+       'figure.figsize': (12, 8),
     'figure.dpi': 300
 })
 
-# ============================================================================
-# CONFIGURATION ET REPRODUCTIBILITÉ
-# ============================================================================
+
 
 class Config:
     """Configuration globale du modèle et de l'entraînement."""
 
-    # Données
+   
     DATA_DIR = "data"
     WINDOW_SIZE = 12
     HORIZON = 1
 
-    # Architecture
     D_MODEL = 128
     TEMPORAL_HEADS = 8
     TEMPORAL_LAYERS = 4
@@ -121,24 +92,20 @@ class Config:
     DROPOUT = 0.1
     USE_FUSION = True
 
-    # Entraînement
     EPOCHS = 100
     BATCH_SIZE = 32
     LEARNING_RATE = 0.0001
     TRAIN_RATIO = 0.70
     VAL_RATIO = 0.15
 
-    # Callbacks
     EARLY_STOPPING_PATIENCE = 20
     REDUCE_LR_PATIENCE = 10
     REDUCE_LR_FACTOR = 0.5
     MIN_LR = 1e-7
 
-    # Sorties
     MODEL_DIR = Path("models")
     FIGURE_DIR = Path("figures")
 
-    # Reproductibilité
     SEED = 42
 
 
@@ -149,9 +116,6 @@ def set_seed(seed: int = 42):
     print(f"✓ Seed fixé: {seed}")
 
 
-# ============================================================================
-# CHARGEMENT ET PRÉPARATION DONNÉES
-# ============================================================================
 
 class DataLoader:
     """Gestionnaire de chargement et préparation des données."""
@@ -167,32 +131,29 @@ class DataLoader:
             Dict contenant df, coords, matrices, réseau
         """
         print("\n" + "=" * 80)
-        print("📂 CHARGEMENT DES DONNÉES")
+        print(" CHARGEMENT DES DONNÉES")
         print("=" * 80)
 
-        # Données temporelles
-        print("\n📊 Chargement spatiotemporal_data.csv...")
+               print("\nChargement spatiotemporal_data.csv...")
         df = pd.read_csv(self.data_dir / 'spatiotemporal_data.csv',
                          parse_dates=['date'])
 
-        # Coordonnées GPS
-        print("📍 Chargement road_coordinates.csv...")
+        print(" Chargement road_coordinates.csv...")
         coords_df = pd.read_csv(self.data_dir / 'road_coordinates.csv')
         coords = list(zip(coords_df['latitude'], coords_df['longitude']))
 
-        # Matrices
-        print("🗺️  Chargement matrices...")
+       
+        print("  Chargement matrices...")
         distance_matrix = np.load(self.data_dir / 'distance_matrix.npy')
         A_distance = np.load(self.data_dir / 'adjacency_distance.npy')
         A_similarity = np.load(self.data_dir / 'adjacency_similarity.npy')
         A_topology = np.load(self.data_dir / 'adjacency_topology.npy')
 
-        # Graphe réseau
-        print("🔗 Chargement road_network.pkl...")
+        print(" Chargement road_network.pkl...")
         with open(self.data_dir / 'road_network.pkl', 'rb') as f:
             road_network = pickle.load(f)
 
-        print(f"\n✓ Données chargées!")
+        print(f"\n Données chargées!")
         print(f"  - Observations: {len(df):,}")
         print(f"  - Segments: {df['road_id'].nunique()}")
         print(f"  - Période: {df['date'].min()} à {df['date'].max()}")
@@ -209,8 +170,7 @@ class DataLoader:
 
 
 class DataPreprocessor:
-    """Préparation des séquences spatio-temporelles."""
-
+    
     def __init__(self, window_size: int = 12, horizon: int = 1):
         self.window_size = window_size
         self.horizon = horizon
@@ -230,7 +190,7 @@ class DataPreprocessor:
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values(["date", "road_index"]).reset_index(drop=True)
 
-        # Features numériques
+        
         feature_cols = [
             "traffic_vpj", "heavy_vehicle_pct", "age_years", "thickness_cm",
             "IRI", "PCI", "degree_centrality",
@@ -239,7 +199,7 @@ class DataPreprocessor:
             "month", "quarter",
         ]
 
-        # Encodage catégoriel
+        
         for col, new_col in [
             ("road_type", "road_type_enc"),
             ("climate_zone", "climate_zone_enc"),
@@ -250,19 +210,19 @@ class DataPreprocessor:
                 df[new_col] = le.fit_transform(df[col].astype(str))
                 feature_cols.append(new_col)
 
-        # Gestion NaN
+        
         df[feature_cols] = df[feature_cols].ffill().bfill()
 
         roads = sorted(df["road_index"].unique())
         timestamps = sorted(df["date"].unique())
         n_roads, n_time = len(roads), len(timestamps)
 
-        print(f"\n📊 Dimensions:")
+        print(f"\n Dimensions:")
         print(f"  - Segments: {n_roads}")
         print(f"  - Timestamps: {n_time}")
         print(f"  - Features: {len(feature_cols)}")
 
-        # Matrice [time, roads, features]
+        
         feat = np.zeros((n_time, n_roads, len(feature_cols)), dtype=np.float32)
         target = np.zeros((n_time, n_roads), dtype=np.float32)
 
@@ -275,7 +235,7 @@ class DataPreprocessor:
             feat[ti, ri, :] = row[feature_cols].values
             target[ti, ri] = row["IRI"]
 
-        # Fenêtres glissantes
+        
         X_list, y_list = [], []
         for start in range(n_time - self.window_size - self.horizon + 1):
             end = start + self.window_size
@@ -302,7 +262,7 @@ class DataPreprocessor:
             'test': (X[n_train + n_val:], y[n_train + n_val:])
         }
 
-        print(f"\n📊 Split temporel:")
+        print(f"\n Split temporel:")
         for name, (x, _) in splits.items():
             print(f"  - {name.capitalize()}: {x.shape[0]} samples")
 
@@ -319,7 +279,7 @@ class DataPreprocessor:
         scaler_X = StandardScaler()
         scaler_y = StandardScaler()
 
-        # Flatten et transform
+        
         def transform_X(X, fit=False):
             X_2d = X.reshape(-1, X.shape[-1])
             if fit:
@@ -341,10 +301,6 @@ class DataPreprocessor:
             'scalers': (scaler_X, scaler_y)
         }
 
-
-# ============================================================================
-# ARCHITECTURE MODÈLE
-# ============================================================================
 
 class PositionalEncoding(layers.Layer):
     """Encodage positionnel sinusoïdal."""
@@ -386,10 +342,7 @@ class TransformerEncoderBlock(layers.Layer):
 
 
 class GraphAttentionLayer(layers.Layer):
-    """
-    GAT multi-têtes avec masquage.
-    FIX: Correction du bug de dimension dans le calcul de l'attention.
-    """
+    
 
     def __init__(self, units: int, num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
@@ -403,19 +356,14 @@ class GraphAttentionLayer(layers.Layer):
         self.out_proj = layers.Dense(units)
 
     def call(self, h, adjacency, training=False):
-        """
-        h: [batch, nodes, units]
-        adjacency: [nodes, nodes]
-
-        FIX: Utilisation correcte de broadcasting pour la concaténation.
-        """
+        
         A = tf.where(tf.cast(adjacency, tf.float32) > 0, 0.0, -1e9)
 
         outs = []
         for k in range(self.num_heads):
             Wh = self.W[k](h)  # [batch, nodes, units]
 
-            # FIX: Broadcasting correct pour créer [batch, nodes, nodes, 2*units]
+           
             num_nodes = tf.shape(Wh)[1]
 
             # Wh_i: [batch, nodes, 1, units] répété pour [batch, nodes, nodes, units]
@@ -426,29 +374,28 @@ class GraphAttentionLayer(layers.Layer):
             Wh_j = tf.expand_dims(Wh, 1)  # [batch, 1, nodes, units]
             Wh_j = tf.tile(Wh_j, [1, num_nodes, 1, 1])  # [batch, nodes, nodes, units]
 
-            # Concaténation: [batch, nodes, nodes, 2*units]
+            
             combined = tf.concat([Wh_i, Wh_j], axis=-1)
 
-            # Calcul attention
             e = self.leaky(self.a[k](combined))  # [batch, nodes, nodes, 1]
             e = tf.squeeze(e, axis=-1)  # [batch, nodes, nodes]
 
-            # Masquage + softmax
+           
             alpha = tf.nn.softmax(e + A, axis=-1)
             alpha = self.drop(alpha, training=training)
 
-            # Agrégation
+            
             out = tf.matmul(alpha, Wh)  # [batch, nodes, units]
             outs.append(out)
 
-        # Concaténer toutes les têtes et projeter
+       
         h_out = tf.concat(outs, axis=-1)  # [batch, nodes, num_heads*units]
         h_out = self.out_proj(h_out)  # [batch, nodes, units]
         return h_out
 
 
 class SpatioTemporalFusion(layers.Layer):
-    """Cross-attention bidirectionnelle."""
+   
 
     def __init__(self, d_model: int, num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
@@ -473,7 +420,7 @@ class SpatioTemporalFusion(layers.Layer):
 
 
 class STGTModel(keras.Model):
-    """Modèle STGT complet."""
+    
 
     def __init__(self, config: Config):
         super().__init__()
@@ -505,10 +452,10 @@ class STGTModel(keras.Model):
         ])
 
     def call(self, inputs, adjacency, training=False):
-        # Itération sûre en mode graph: décomposer les routes (axis=1)
+        
         roads_seq = tf.unstack(inputs, axis=1)  # liste de tenseurs [batch, window, features]
 
-        # Temporal encoding
+        
         temporal_outputs = []
         for road_seq in roads_seq:
             x = self.embedding(road_seq)
@@ -519,12 +466,12 @@ class STGTModel(keras.Model):
 
         temporal_emb = tf.stack(temporal_outputs, axis=1)
 
-        # Spatial encoding
+        
         spatial_emb = temporal_emb
         for block in self.spatial_blocks:
             spatial_emb = block(spatial_emb, adjacency, training=training)
 
-        # Fusion
+       
         if self.config.USE_FUSION:
             fused = self.fusion(temporal_emb, spatial_emb, training=training)
         else:
@@ -534,7 +481,7 @@ class STGTModel(keras.Model):
 
 
 class STGTWrapper(keras.Model):
-    """Wrapper pour model.fit()."""
+    
 
     def __init__(self, stgt_model, adjacency_matrix):
         super().__init__()
@@ -545,25 +492,21 @@ class STGTWrapper(keras.Model):
         return self.stgt(inputs, self.adjacency, training=training)
 
 
-# ============================================================================
-# VISUALISATIONS
-# ============================================================================
 
 class Visualizer:
-    """Gestionnaire de visualisations."""
-
+   
     def __init__(self, output_dir: Path = Path("figures")):
         self.output_dir = output_dir
         self.output_dir.mkdir(exist_ok=True)
 
     def plot_network(self, graph, coords, iri_values):
         """Figure 1: Réseau routier."""
-        print("\n🎨 Génération network_visualization.eps...")
+        print("\n Génération network_visualization.eps...")
 
         fig, axes = plt.subplots(1, 3, figsize=(20, 6))
         pos = {i: (c[1], c[0]) for i, c in enumerate(coords)}
 
-        # Panel 1: Réseau
+        
         colors = plt.cm.RdYlGn_r((iri_values - iri_values.min()) /
                                  (iri_values.max() - iri_values.min()))
         nx.draw_networkx_edges(graph, pos, alpha=0.2, width=0.5, ax=axes[0])
@@ -573,7 +516,7 @@ class Visualizer:
         axes[0].set_xlabel('Longitude')
         axes[0].set_ylabel('Latitude')
 
-        # Panel 2: Distribution
+        
         axes[1].hist(iri_values, bins=30, alpha=0.7, edgecolor='black')
         axes[1].axvline(iri_values.mean(), color='red', linestyle='--',
                         label=f'Mean: {iri_values.mean():.2f}')
@@ -582,7 +525,7 @@ class Visualizer:
         axes[1].set_title('IRI Distribution', fontweight='bold')
         axes[1].legend()
 
-        # Panel 3: Stats
+        
         stats_text = (f'Network Statistics\n\n'
                       f'Segments: {len(graph.nodes)}\n'
                       f'Connections: {len(graph.edges)}\n'
@@ -596,16 +539,16 @@ class Visualizer:
         plt.savefig(self.output_dir / 'network_visualization.eps',
                     dpi=300, bbox_inches='tight')
         plt.close()
-        print("✓ Sauvegardé")
+        print(" Sauvegardé")
 
     def plot_training(self, history_df):
         """Figure 2: Courbes d'entraînement."""
-        print("\n📈 Génération training_curves.eps...")
+        print("\n Génération training_curves.eps...")
 
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         epochs = range(1, len(history_df) + 1)
 
-        # Loss
+       
         axes[0].plot(epochs, history_df['loss'], 'b-', label='Train', lw=2)
         axes[0].plot(epochs, history_df['val_loss'], 'r-', label='Val', lw=2)
         axes[0].set_xlabel('Epoch', fontweight='bold')
@@ -614,7 +557,7 @@ class Visualizer:
         axes[0].legend()
         axes[0].grid(True, alpha=0.3)
 
-        # MAE
+       
         axes[1].plot(epochs, history_df['mae'], 'b-', label='Train', lw=2)
         axes[1].plot(epochs, history_df['val_mae'], 'r-', label='Val', lw=2)
         axes[1].set_xlabel('Epoch', fontweight='bold')
@@ -627,17 +570,17 @@ class Visualizer:
         plt.savefig(self.output_dir / 'training_curves.eps',
                     dpi=300, bbox_inches='tight')
         plt.close()
-        print("✓ Sauvegardé")
+        print(" Sauvegardé")
 
     def plot_evaluation(self, y_true, y_pred):
         """Figure 3: Résultats évaluation."""
-        print("\n📊 Génération evaluation_results.eps...")
+        print("\n Génération evaluation_results.eps...")
 
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         y_true_flat, y_pred_flat = y_true.flatten(), y_pred.flatten()
         errors = y_true_flat - y_pred_flat
 
-        # Scatter
+       
         axes[0, 0].scatter(y_true_flat, y_pred_flat, alpha=0.5, s=20)
         axes[0, 0].plot([y_true_flat.min(), y_true_flat.max()],
                         [y_true_flat.min(), y_true_flat.max()],
@@ -647,14 +590,14 @@ class Visualizer:
         axes[0, 0].set_title('Predictions vs Actual', fontweight='bold')
         axes[0, 0].legend()
 
-        # Erreurs
+        
         axes[0, 1].hist(errors, bins=50, alpha=0.7, edgecolor='black')
         axes[0, 1].axvline(0, color='red', linestyle='--', lw=2)
         axes[0, 1].set_xlabel('Error (mm/m)', fontweight='bold')
         axes[0, 1].set_ylabel('Frequency', fontweight='bold')
         axes[0, 1].set_title('Error Distribution', fontweight='bold')
 
-        # MAE par segment
+       
         mae_per_road = np.abs(y_true - y_pred).mean(axis=0).flatten()
         axes[1, 0].bar(range(len(mae_per_road)), mae_per_road, alpha=0.7)
         axes[1, 0].axhline(mae_per_road.mean(), color='red', linestyle='--',
@@ -664,7 +607,7 @@ class Visualizer:
         axes[1, 0].set_title('MAE per Segment', fontweight='bold')
         axes[1, 0].legend()
 
-        # Série temporelle
+        
         axes[1, 1].plot(y_true[:, 0, 0], 'b-', label='Actual', lw=2, marker='o')
         axes[1, 1].plot(y_pred[:, 0, 0], 'r--', label='Predicted', lw=2, marker='x')
         axes[1, 1].set_xlabel('Time Step', fontweight='bold')
@@ -676,12 +619,12 @@ class Visualizer:
         plt.savefig(self.output_dir / 'evaluation_results.eps',
                     dpi=300, bbox_inches='tight')
         plt.close()
-        print("✓ Sauvegardé")
+        print(" Sauvegardé")
 
     def plot_propagation(self, model, X_test, scaler_y, A_similarity,
                          distance_matrix, source_idx=0):
         """Figure 4: Propagation spatiale."""
-        print("\n🗺️  Génération spatial_propagation.eps...")
+        print("\n Génération spatial_propagation.eps...")
 
         # Baseline vs Modified
         y_baseline = model.stgt(X_test, A_similarity, training=False).numpy()
@@ -706,7 +649,7 @@ class Visualizer:
         axes[0].set_title('Spatial Propagation', fontweight='bold')
         axes[0].legend()
 
-        # Heatmap
+        
         impact_2d = impact.reshape(10, 10) if len(impact) == 100 else impact.reshape(-1, 1)
         im = axes[1].imshow(impact_2d, cmap='RdYlGn_r', aspect='auto')
         axes[1].set_title('Impact Heatmap', fontweight='bold')
@@ -716,24 +659,21 @@ class Visualizer:
         plt.savefig(self.output_dir / 'spatial_propagation.eps',
                     dpi=300, bbox_inches='tight')
         plt.close()
-        print("✓ Sauvegardé")
+        print(" Sauvegardé")
 
 
-# ============================================================================
-# ENTRAÎNEMENT ET ÉVALUATION
-# ============================================================================
 
 class Trainer:
-    """Gestionnaire d'entraînement."""
+  
 
     def __init__(self, config: Config):
         self.config = config
         config.MODEL_DIR.mkdir(exist_ok=True)
 
     def train(self, model, X_train, y_train, X_val, y_val):
-        """Entraîne le modèle."""
+       
         print("\n" + "=" * 80)
-        print("🚀 ENTRAÎNEMENT")
+        print(" ENTRAÎNEMENT")
         print("=" * 80)
 
         model.compile(
@@ -766,9 +706,9 @@ class Trainer:
             callbacks.CSVLogger(self.config.MODEL_DIR / 'history.csv')
         ]
 
-        print(f"\n⚙️  Configuration: epochs={self.config.EPOCHS}, "
+        print(f"\n  Configuration: epochs={self.config.EPOCHS}, "
               f"batch={self.config.BATCH_SIZE}, lr={self.config.LEARNING_RATE}")
-        print("\n🏋️  Début entraînement...\n")
+        print("\n  Début entraînement...\n")
 
         history = model.fit(
             X_train, y_train,
@@ -779,13 +719,13 @@ class Trainer:
             verbose=1
         )
 
-        print("\n✓ Entraînement terminé!")
+        print("\n Entraînement terminé!")
         return history
 
     def evaluate(self, model, X_test, y_test, scaler_y):
         """Évalue le modèle."""
         print("\n" + "=" * 80)
-        print("📊 ÉVALUATION")
+        print(" ÉVALUATION")
         print("=" * 80)
 
         y_pred = model.predict(X_test, verbose=0)
@@ -801,7 +741,7 @@ class Trainer:
         }
 
         print("\n" + "=" * 60)
-        print("📊 RÉSULTATS FINAUX")
+        print(" RÉSULTATS FINAUX")
         print("=" * 60)
         for k, v in metrics.items():
             unit = ' mm/m' if k in ['mae', 'rmse'] else ('%' if k == 'mape' else '')
@@ -811,13 +751,9 @@ class Trainer:
         return metrics, y_pred_real, y_test_real
 
 
-# ============================================================================
-# MAIN PIPELINE
-# ============================================================================
 
 def main():
-    """Pipeline complet."""
-
+    
     parser = argparse.ArgumentParser(description='STGT Ultimate (FIXED)')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=32)
@@ -826,7 +762,6 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
-    # Configuration
     config = Config()
     config.EPOCHS = args.epochs
     config.BATCH_SIZE = args.batch_size
@@ -835,41 +770,40 @@ def main():
     set_seed(args.seed)
 
     print("\n" + "=" * 80)
-    print("🚀 STGT ULTIMATE - PIPELINE COMPLET (VERSION CORRIGÉE)")
+    print(" STGT ULTIMATE - PIPELINE COMPLET (VERSION CORRIGÉE)")
     print("=" * 80)
 
-    # 1. Chargement
+    
     loader = DataLoader(config.DATA_DIR)
     data = loader.load_all()
 
-    # 2. Préparation
+    
     preprocessor = DataPreprocessor(config.WINDOW_SIZE, config.HORIZON)
     X, y, features = preprocessor.create_sequences(data['df'])
     splits = preprocessor.split_temporal(X, y, config.TRAIN_RATIO, config.VAL_RATIO)
     normalized = preprocessor.standardize(splits['train'], splits['val'], splits['test'])
 
-    # 3. Modèle
+    
     print("\n" + "=" * 80)
-    print("🏗️  CRÉATION MODÈLE")
+    print("  CRÉATION MODÈLE")
     print("=" * 80)
 
     stgt = STGTModel(config)
     model = STGTWrapper(stgt, data['A_similarity'])
     _ = model(normalized['train'][0][:1])
 
-    print(f"\n✓ Modèle créé: {model.count_params():,} paramètres")
+    print(f"\n Modèle créé: {model.count_params():,} paramètres")
 
-    # 4. Entraînement
+  
     trainer = Trainer(config)
     history = trainer.train(model, *normalized['train'], *normalized['val'])
 
-    # 5. Évaluation
+   
     metrics, y_pred, y_test = trainer.evaluate(
         model, *normalized['test'], normalized['scalers'][1]
     )
 
-    # 6. Sauvegarde
-    print("\n💾 Sauvegarde résultats...")
+    print("\n Sauvegarde résultats...")
     with open(config.MODEL_DIR / 'metrics.json', 'w') as f:
         json.dump(metrics, f, indent=2)
     with open(config.MODEL_DIR / 'config.json', 'w') as f:
@@ -879,12 +813,12 @@ def main():
             pickle.dump(scaler, f)
     np.save(config.MODEL_DIR / 'predictions.npy', y_pred)
     np.save(config.MODEL_DIR / 'actuals.npy', y_test)
-    print("✓ Sauvegardé")
+    print(" Sauvegardé")
 
-    # 7. Visualisations
+    
     if args.visualize:
         print("\n" + "=" * 80)
-        print("🎨 VISUALISATIONS")
+        print(" VISUALISATIONS")
         print("=" * 80)
 
         viz = Visualizer(config.FIGURE_DIR)
@@ -895,14 +829,14 @@ def main():
         viz.plot_propagation(model, normalized['test'][0], normalized['scalers'][1],
                              data['A_similarity'], data['distance_matrix'])
 
-        print("\n✓ Toutes les visualisations générées!")
+        print("\n Toutes les visualisations générées!")
 
-    # Résumé
+    
     print("\n" + "=" * 80)
-    print("✅ PIPELINE TERMINÉ")
+    print(" PIPELINE TERMINÉ")
     print("=" * 80)
-    print(f"\n📊 Performances: MAE={metrics['mae']:.4f}, R²={metrics['r2']:.4f}")
-    print(f"📁 Fichiers: models/, figures/")
+    print(f"\n Performances: MAE={metrics['mae']:.4f}, R²={metrics['r2']:.4f}")
+    print(f" Fichiers: models/, figures/")
     print("\n" + "=" * 80)
 
 
